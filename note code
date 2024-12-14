@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>侧边栏笔记本</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+
+        #notebook {
+            display: flex;
+            height: 100vh;
+        }
+
+        #toolbar {
+            background-color: #fff;
+            border-right: 1px solid #ddd;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .btn {
+            background-color: #f1f1f1;
+            border: none;
+            color: #333;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 0;
+            cursor: pointer;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:hover {
+            background-color: #e6e6e6;
+        }
+
+        #editor {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            outline: none;
+            font-family: 'Microsoft YaHei', sans-serif;
+        }
+
+        pre {
+            background-color: #333;
+            color: #fff;
+            font-family: 'Microsoft YaHei', sans-serif;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="notebook">
+        <div id="toolbar">
+            <button class="btn" onclick="align('left')">左对齐</button>
+            <button class="btn" onclick="align('center')">居中</button>
+            <button class="btn" onclick="align('right')">右对齐</button>
+            <button class="btn" onclick="insertImage()">插入图片</button>
+            <button class="btn" onclick="insertTable()">插入表格</button>
+            <button class="btn" onclick="insertCodeBlock()">插入代码块</button>
+            <button class="btn" onclick="insertLink()">添加超链接</button>
+            <button class="btn" onclick="highlightText()">高亮/取消高亮</button>
+            <button class="btn" onclick="exportNotes('single')">导出选中</button>
+            <button class="btn" onclick="exportNotes('all')">导出全部</button>
+            <button class="btn" onclick="toggleAutoSave()">自动保存</button>
+            <button class="btn" onclick="openSavedNotes()">查看已保存笔记</button>
+            <select class="btn" id="fontFamily" onchange="setFontFamily(this.value)">
+                <option value="">字体</option>
+                <option value="'Microsoft YaHei', sans-serif">微软雅黑</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Times New Roman, serif">Times New Roman</option>
+            </select>
+        </div>
+        <div id="editor" contenteditable="true"></div>
+    </div>
+
+    <script>
+        let autoSaveInterval;
+
+        // 格式化功能
+        function format(command) {
+            document.execCommand(command);
+        }
+
+        // 设置字体
+        function setFontFamily(fontFamily) {
+            document.execCommand('fontName', false, fontFamily);
+        }
+
+        // 文本对齐
+        function align(alignment) {
+            document.execCommand('justify' + alignment);
+        }
+
+        // 插入图片
+        function insertImage() {
+            const choice = confirm('点击确定上传本地图片，或取消输入图片链接');
+            if (choice) {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            document.execCommand('insertImage', false, event.target.result);
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+                input.click();
+            } else {
+                const url = prompt('请输入图片链接');
+                if (url) {
+                    document.execCommand('insertImage', false, url);
+                }
+            }
+        }
+
+        // 插入表格
+        function insertTable() {
+            const rows = parseInt(prompt('输入行数', '2')) || 2;
+            const cols = parseInt(prompt('输入列数', '2')) || 2;
+            let tableHTML = '<table>';
+            for (let i = 0; i < rows; i++) {
+                tableHTML += '<tr>';
+                for (let j = 0; j < cols; j++) {
+                    tableHTML += '<td contenteditable="true"></td>';
+                }
+                tableHTML += '</tr>';
+            }
+            tableHTML += '</table>';
+
+            // 插入到光标位置
+            const selection = window.getSelection();
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+            const div = document.createElement('div');
+            div.innerHTML = tableHTML;
+            const fragment = document.createDocumentFragment();
+            while (div.firstChild) {
+                fragment.appendChild(div.firstChild);
+            }
+            range.insertNode(fragment);
+        }
+
+        // 插入代码块
+        function insertCodeBlock() {
+            const code = prompt('输入代码');
+            if (code) {
+                document.getElementById('editor').innerHTML += `<pre><code>${code}</code></pre>`;
+            }
+        }
+
+        // 添加超链接
+        function insertLink() {
+            const url = prompt('请输入链接地址');
+            if (url) {
+                const link = document.createElement('a');
+                link.href = url;
+                link.target = '_blank';
+                link.textContent = url;
+                document.execCommand('insertHTML', false, link.outerHTML);
+            }
+        }
+
+        // 高亮文本/取消高亮
+        function highlightText() {
+            const selection = window.getSelection();
+            if (selection.rangeCount) {
+                const range = selection.getRangeAt(0);
+                const span = document.createElement('span');
+                span.style.backgroundColor = 'yellow';
+                if (range.commonAncestorContainer.nodeName.toLowerCase() === 'span' && range.commonAncestorContainer.style.backgroundColor === 'yellow') {
+                    range.unwrap(span);
+                } else {
+                    range.surroundContents(span);
+                }
+            }
+        }
+
+        // 导出功能
+        function exportNotes(mode) {
+            const selectedContent = window.getSelection().toString();
+            const editorContent = mode === 'single' && selectedContent ? selectedContent : document.getElementById('editor').innerHTML;
+            const blob = new Blob([editorContent], { type: 'text/html' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = mode === 'all' ? '笔记.html' : '选中笔记.html';
+            link.click();
+        }
+
+        // 自动保存功能
+        const editor = document.getElementById('editor');
+        editor.addEventListener('input', () => {
+            clearInterval(autoSaveInterval);
+            autoSaveInterval = setInterval(saveNotes, 5000);
+        });
+
+        function saveNotes() {
+            const content = document.getElementById('editor').innerHTML;
+            localStorage.setItem('noteContent', content);
+            const autoSaveStatus = document.createElement('div');
+            autoSaveStatus.textContent = '自动保存已开启';
+            autoSaveStatus.style.color = 'green';
+            autoSaveStatus.style.fontWeight = 'bold';
+            document.getElementById('editor').appendChild(autoSaveStatus);
+        }
+
+        function toggleAutoSave() {
+            if (autoSaveInterval) {
+                clearInterval(autoSaveInterval);
+                autoSaveInterval = null;
+                const autoSaveStatus = document.createElement('div');
+                autoSaveStatus.textContent = '自动保存已关闭';
+                autoSaveStatus.style.color = 'red';
+                autoSaveStatus.style.fontWeight = 'bold';
+                document.getElementById('editor').appendChild(autoSaveStatus);
+            } else {
+                autoSaveInterval = setInterval(saveNotes, 5000);
+            }
+        }
+
+        function openSavedNotes() {
+            const content = localStorage.getItem('noteContent');
+            if (content) {
+                const savedNotes = document.createElement('div');
+                savedNotes.textContent = content;
+                const popup = window.open('', 'Saved Notes', 'width=800,height=600');
+                popup.document.body.appendChild(savedNotes);
+            } else {
+                alert('没有找到之前保存的笔记');
+            }
+        }
+    </script>
+</body>
+</html>
